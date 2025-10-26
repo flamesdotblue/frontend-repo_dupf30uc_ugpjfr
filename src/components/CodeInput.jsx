@@ -2,10 +2,10 @@ import React from 'react';
 
 function CodeInput({ code, onChange, language = 'javascript', onLanguageChange }) {
   const placeholderMap = {
-    javascript: 'Write JavaScript code here... (supports execution + trace)',
-    python: 'Write Python code here... (preview only for now)',
-    cpp: 'Write C++ code here... (preview only for now)',
-    java: 'Write Java code here... (preview only for now)',
+    javascript: 'Write JavaScript code here... (exec + trace supported)',
+    python: 'Write Python code here... (simulated visualization only)',
+    cpp: 'Write C++ code here... (simulated visualization only)',
+    java: 'Write Java code here... (simulated visualization only)',
   };
 
   return (
@@ -13,7 +13,7 @@ function CodeInput({ code, onChange, language = 'javascript', onLanguageChange }
       <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-slate-900/60 to-slate-800/40">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-slate-200">Editor</h3>
-          <span className="text-xs text-slate-400">{language === 'javascript' ? 'Dynamic visualization supported' : 'Preview only'}</span>
+          <span className="text-xs text-slate-400">{language === 'javascript' ? 'Dynamic execution + visualization' : 'Simulated visualization'}</span>
         </div>
         <div className="flex items-center gap-2">
           <label htmlFor="lang" className="text-xs text-slate-400">Language</label>

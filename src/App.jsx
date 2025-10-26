@@ -7,9 +7,9 @@ import OutputPanel from './components/OutputPanel.jsx';
 
 const LANGUAGE_TEMPLATES = {
   javascript: `// Example: Fibonacci and logging\nfunction fib(n){\n  if(n <= 1) return n;\n  return fib(n-1) + fib(n-2);\n}\n\nconsole.log('fib(6)=', fib(6));\n\n// Try editing and press Run!`,
-  python: `# Example: Fibonacci and printing\ndef fib(n):\n    if n <= 1:\n        return n\n    return fib(n-1) + fib(n-2)\n\nprint('fib(6)=', fib(6))\n\n# Note: Python execution/trace not yet supported in this demo`,
-  cpp: `// Example: Fibonacci and output\n#include <bits/stdc++.h>\nusing namespace std;\n\nint fib(int n){\n    if(n <= 1) return n;\n    return fib(n-1) + fib(n-2);\n}\n\nint main(){\n    cout << "fib(6)=" << fib(6) << "\\n";\n    // Note: C++ execution/trace not yet supported in this demo\n    return 0;\n}`,
-  java: `// Example: Fibonacci and output\npublic class Main {\n    static int fib(int n){\n        if(n <= 1) return n;\n        return fib(n-1) + fib(n-2);\n    }\n    public static void main(String[] args){\n        System.out.println("fib(6)=" + fib(6));\n        // Note: Java execution/trace not yet supported in this demo\n    }\n}`,
+  python: `# Example: Fibonacci and printing\ndef fib(n):\n    if n <= 1:\n        return n\n    return fib(n-1) + fib(n-2)\n\nprint('fib(6)=', fib(6))\n\n# Demo: Simulated visualization only (no execution)`,
+  cpp: `// Example: Fibonacci and output\n#include <bits/stdc++.h>\nusing namespace std;\n\nint fib(int n){\n    if(n <= 1) return n;\n    return fib(n-1) + fib(n-2);\n}\n\nint main(){\n    cout << "fib(6)=" << fib(6) << "\\n";\n    // Demo: Simulated visualization only (no execution)\n    return 0;\n}`,
+  java: `// Example: Fibonacci and output\npublic class Main {\n    static int fib(int n){\n        if(n <= 1) return n;\n        return fib(n-1) + fib(n-2);\n    }\n    public static void main(String[] args){\n        System.out.println("fib(6)=" + fib(6));\n        // Demo: Simulated visualization only (no execution)\n    }\n}`,
 };
 
 export default function App() {
@@ -38,8 +38,30 @@ export default function App() {
   const instrumentAndRun = useCallback(() => {
     reset();
 
+    // For non-JS languages, provide a simulated visualization without execution
     if (language !== 'javascript') {
-      setError(`Execution/visual trace for ${language.toUpperCase()} is not available yet. Switch to JavaScript to run and visualize.`);
+      const lines = code.split('\n');
+      const nonEmptyLines = lines.map((l, i) => ({ idx: i, text: l })).filter(x => x.text.trim().length > 0);
+      const simulatedEvents = (nonEmptyLines.length ? nonEmptyLines : lines.map((_, i) => ({ idx: i })))
+        .map(x => ({ type: 'step', line: x.idx + 1 }));
+      setSteps(simulatedEvents);
+      setLogs([`Preview mode: Simulated line-by-line visualization for ${language.toUpperCase()}. No code execution performed.`]);
+      setError('');
+      if (simulatedEvents.length > 0) {
+        setIsRunning(true);
+        let i = 0;
+        setCurrentLine(simulatedEvents[0].line);
+        playTimer.current = setInterval(() => {
+          i += 1;
+          if (i >= simulatedEvents.length) {
+            clearInterval(playTimer.current);
+            playTimer.current = null;
+            setIsRunning(false);
+            return;
+          }
+          setCurrentLine(simulatedEvents[i].line);
+        }, Math.max(50, speed));
+      }
       return;
     }
 
@@ -94,7 +116,7 @@ export default function App() {
 
   const languageBadge = useMemo(() => {
     if (language === 'javascript') return 'JavaScript • Dynamic Line Trace';
-    return `${language.toUpperCase()} • Preview Only`;
+    return `${language.toUpperCase()} • Simulated Visualization`;
   }, [language]);
 
   const handleLanguageChange = useCallback((next) => {
@@ -144,7 +166,7 @@ export default function App() {
                 <li>For JavaScript, we insert a hidden trace call before each line to record execution order.</li>
                 <li>Your code runs once, then we replay the trace to animate highlighting.</li>
                 <li>console.log output is captured and shown in the output panel.</li>
-                <li>Python, C++, and Java are currently preview-only in this demo.</li>
+                <li>For Python, C++, and Java we simulate a line-by-line visualization without executing code.</li>
               </ul>
               <p className="mt-2 text-slate-400">We can add full multi-language execution later using secure sandboxes or interpreters.</p>
             </div>
@@ -155,7 +177,7 @@ export default function App() {
       <footer className="mt-6 border-t border-white/10 bg-slate-950/60 py-6 text-sm text-white/60">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6">
           <p>© {new Date().getFullYear()} Code Visualizer</p>
-          <p className="hidden md:block">Edit the code and press Run. JavaScript will animate line-by-line.</p>
+          <p className="hidden md:block">Edit the code and press Run. JavaScript will execute; other languages simulate line-by-line.</p>
         </div>
       </footer>
     </div>
