@@ -5,8 +5,16 @@ import Controls from './components/Controls.jsx';
 import CodeVisualizer from './components/CodeVisualizer.jsx';
 import OutputPanel from './components/OutputPanel.jsx';
 
+const LANGUAGE_TEMPLATES = {
+  javascript: `// Example: Fibonacci and logging\nfunction fib(n){\n  if(n <= 1) return n;\n  return fib(n-1) + fib(n-2);\n}\n\nconsole.log('fib(6)=', fib(6));\n\n// Try editing and press Run!`,
+  python: `# Example: Fibonacci and printing\ndef fib(n):\n    if n <= 1:\n        return n\n    return fib(n-1) + fib(n-2)\n\nprint('fib(6)=', fib(6))\n\n# Note: Python execution/trace not yet supported in this demo`,
+  cpp: `// Example: Fibonacci and output\n#include <bits/stdc++.h>\nusing namespace std;\n\nint fib(int n){\n    if(n <= 1) return n;\n    return fib(n-1) + fib(n-2);\n}\n\nint main(){\n    cout << "fib(6)=" << fib(6) << "\\n";\n    // Note: C++ execution/trace not yet supported in this demo\n    return 0;\n}`,
+  java: `// Example: Fibonacci and output\npublic class Main {\n    static int fib(int n){\n        if(n <= 1) return n;\n        return fib(n-1) + fib(n-2);\n    }\n    public static void main(String[] args){\n        System.out.println("fib(6)=" + fib(6));\n        // Note: Java execution/trace not yet supported in this demo\n    }\n}`,
+};
+
 export default function App() {
-  const [code, setCode] = useState(() => `// Example: Fibonacci and logging\nfunction fib(n){\n  if(n <= 1) return n;\n  return fib(n-1) + fib(n-2);\n}\n\nconsole.log('fib(6)=', fib(6));\n\n// Try editing and press Run!`);
+  const [language, setLanguage] = useState('javascript');
+  const [code, setCode] = useState(() => LANGUAGE_TEMPLATES.javascript);
   const [steps, setSteps] = useState([]); // { type: 'step', line: number }
   const [logs, setLogs] = useState([]); // strings
   const [error, setError] = useState('');
@@ -30,8 +38,12 @@ export default function App() {
   const instrumentAndRun = useCallback(() => {
     reset();
 
-    // Very lightweight line-based tracer for JavaScript.
-    // It injects a trace call before each line and captures console.log output.
+    if (language !== 'javascript') {
+      setError(`Execution/visual trace for ${language.toUpperCase()} is not available yet. Switch to JavaScript to run and visualize.`);
+      return;
+    }
+
+    // Lightweight line-based tracer for JavaScript.
     const lines = code.split('\n');
     const header = `const __events = [];\nconst __trace = (ln) => { __events.push({ type: 'step', line: ln }); };\nconst __logs = [];\nconst __origLog = console.log;\nconsole.log = (...args) => { try { __logs.push(args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ')); } catch(_) { __logs.push(args.map(String).join(' ')); } __origLog(...args); };\n`;
 
@@ -43,7 +55,6 @@ export default function App() {
 
     let result;
     try {
-      // Wrap into a function to avoid leaking variables to global scope
       // eslint-disable-next-line no-new-func
       const runner = new Function(header + body + footer);
       result = runner();
@@ -52,7 +63,6 @@ export default function App() {
       setSteps(ev);
       setLogs(lg);
       setError('');
-      // Playback visualization after code execution has produced the trace
       if (ev.length > 0) {
         setIsRunning(true);
         let i = 0;
@@ -76,11 +86,22 @@ export default function App() {
       setLogs([]);
       setCurrentLine(null);
     }
-  }, [code, reset, speed]);
+  }, [code, reset, speed, language]);
 
   useEffect(() => () => { if (playTimer.current) clearInterval(playTimer.current); }, []);
 
   const headerTitle = useMemo(() => 'Code Visualizer', []);
+
+  const languageBadge = useMemo(() => {
+    if (language === 'javascript') return 'JavaScript • Dynamic Line Trace';
+    return `${language.toUpperCase()} • Preview Only`;
+  }, [language]);
+
+  const handleLanguageChange = useCallback((next) => {
+    setLanguage(next);
+    setCode(LANGUAGE_TEMPLATES[next] || '');
+    reset();
+  }, [reset]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white">
@@ -92,7 +113,7 @@ export default function App() {
             <h1 className="font-manrope text-lg font-extrabold tracking-tight">{headerTitle}</h1>
           </div>
           <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/70 md:flex">
-            <Code2 size={14} /> JavaScript Only • Dynamic Line Trace
+            <Code2 size={14} /> {languageBadge}
           </div>
         </div>
       </header>
@@ -100,7 +121,12 @@ export default function App() {
       <main className="mx-auto max-w-7xl px-4 py-6 md:px-6">
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="flex flex-col gap-4">
-            <CodeInput code={code} onChange={setCode} />
+            <CodeInput 
+              code={code} 
+              onChange={setCode} 
+              language={language}
+              onLanguageChange={handleLanguageChange}
+            />
             <Controls
               onRun={instrumentAndRun}
               onReset={reset}
@@ -115,11 +141,12 @@ export default function App() {
             <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
               <p className="mb-2 font-semibold text-slate-200">How it works</p>
               <ul className="list-disc space-y-1 pl-5">
-                <li>We insert a hidden trace call before each line to record execution order.</li>
+                <li>For JavaScript, we insert a hidden trace call before each line to record execution order.</li>
                 <li>Your code runs once, then we replay the trace to animate highlighting.</li>
                 <li>console.log output is captured and shown in the output panel.</li>
+                <li>Python, C++, and Java are currently preview-only in this demo.</li>
               </ul>
-              <p className="mt-2 text-slate-400">Note: This is a lightweight visualizer—side effects in code will still occur during a run.</p>
+              <p className="mt-2 text-slate-400">We can add full multi-language execution later using secure sandboxes or interpreters.</p>
             </div>
           </div>
         </div>
@@ -128,7 +155,7 @@ export default function App() {
       <footer className="mt-6 border-t border-white/10 bg-slate-950/60 py-6 text-sm text-white/60">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6">
           <p>© {new Date().getFullYear()} Code Visualizer</p>
-          <p className="hidden md:block">Edit the code and press Run to see the dynamic line-by-line animation.</p>
+          <p className="hidden md:block">Edit the code and press Run. JavaScript will animate line-by-line.</p>
         </div>
       </footer>
     </div>
