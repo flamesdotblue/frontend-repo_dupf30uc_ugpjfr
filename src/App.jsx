@@ -23,11 +23,15 @@ export default function App() {
   const [isRunning, setIsRunning] = useState(false);
   const playTimer = useRef(null);
 
-  const reset = useCallback(() => {
+  const clearTimer = () => {
     if (playTimer.current) {
       clearInterval(playTimer.current);
       playTimer.current = null;
     }
+  };
+
+  const reset = useCallback(() => {
+    clearTimer();
     setIsRunning(false);
     setSteps([]);
     setLogs([]);
@@ -35,33 +39,40 @@ export default function App() {
     setCurrentLine(null);
   }, []);
 
+  const startPlayback = (evts) => {
+    if (!Array.isArray(evts) || evts.length === 0) {
+      setCurrentLine(null);
+      return;
+    }
+    setIsRunning(true);
+    let i = 0;
+    setCurrentLine(evts[0].line);
+    playTimer.current = setInterval(() => {
+      i += 1;
+      if (i >= evts.length) {
+        clearTimer();
+        setIsRunning(false);
+        return;
+      }
+      setCurrentLine(evts[i].line);
+    }, Math.max(50, speed));
+  };
+
   const instrumentAndRun = useCallback(() => {
     reset();
 
     // For non-JS languages, provide a simulated visualization without execution
     if (language !== 'javascript') {
       const lines = code.split('\n');
-      const nonEmptyLines = lines.map((l, i) => ({ idx: i, text: l })).filter(x => x.text.trim().length > 0);
+      const nonEmptyLines = lines
+        .map((l, i) => ({ idx: i, text: l }))
+        .filter((x) => x.text.trim().length > 0);
       const simulatedEvents = (nonEmptyLines.length ? nonEmptyLines : lines.map((_, i) => ({ idx: i })))
-        .map(x => ({ type: 'step', line: x.idx + 1 }));
+        .map((x) => ({ type: 'step', line: x.idx + 1 }));
       setSteps(simulatedEvents);
       setLogs([`Preview mode: Simulated line-by-line visualization for ${language.toUpperCase()}. No code execution performed.`]);
       setError('');
-      if (simulatedEvents.length > 0) {
-        setIsRunning(true);
-        let i = 0;
-        setCurrentLine(simulatedEvents[0].line);
-        playTimer.current = setInterval(() => {
-          i += 1;
-          if (i >= simulatedEvents.length) {
-            clearInterval(playTimer.current);
-            playTimer.current = null;
-            setIsRunning(false);
-            return;
-          }
-          setCurrentLine(simulatedEvents[i].line);
-        }, Math.max(50, speed));
-      }
+      startPlayback(simulatedEvents);
       return;
     }
 
@@ -73,36 +84,22 @@ export default function App() {
       .map((l, i) => `__trace(${i + 1});\n${l}`)
       .join('\n');
 
-    const footer = `\nreturn { events: __events, logs: __logs };`;
+    // IMPORTANT: restore console.log before returning
+    const footer = `\nconst __result = { events: __events, logs: __logs };\nconsole.log = __origLog;\nreturn __result;`;
 
-    let result;
     try {
       // eslint-disable-next-line no-new-func
       const runner = new Function(header + body + footer);
-      result = runner();
+      const result = runner();
       const ev = Array.isArray(result?.events) ? result.events : [];
       const lg = Array.isArray(result?.logs) ? result.logs : [];
       setSteps(ev);
       setLogs(lg);
       setError('');
-      if (ev.length > 0) {
-        setIsRunning(true);
-        let i = 0;
-        setCurrentLine(ev[0].line);
-        playTimer.current = setInterval(() => {
-          i += 1;
-          if (i >= ev.length) {
-            clearInterval(playTimer.current);
-            playTimer.current = null;
-            setIsRunning(false);
-            return;
-          }
-          setCurrentLine(ev[i].line);
-        }, Math.max(50, speed));
-      } else {
-        setCurrentLine(null);
-      }
+      startPlayback(ev);
     } catch (e) {
+      // Best-effort restore if an error happened before footer executed
+      try { /* eslint-disable no-undef */ console.log = console.log; /* noop to satisfy linter */ } catch(_) {}
       setError(e?.stack || String(e));
       setSteps([]);
       setLogs([]);
@@ -110,7 +107,7 @@ export default function App() {
     }
   }, [code, reset, speed, language]);
 
-  useEffect(() => () => { if (playTimer.current) clearInterval(playTimer.current); }, []);
+  useEffect(() => () => { clearTimer(); }, []);
 
   const headerTitle = useMemo(() => 'Code Visualizer', []);
 
@@ -165,7 +162,7 @@ export default function App() {
               <ul className="list-disc space-y-1 pl-5">
                 <li>For JavaScript, we insert a hidden trace call before each line to record execution order.</li>
                 <li>Your code runs once, then we replay the trace to animate highlighting.</li>
-                <li>console.log output is captured and shown in the output panel.</li>
+                <li>console.log output is captured and shown in the output panel and restored at the end of the run.</li>
                 <li>For Python, C++, and Java we simulate a line-by-line visualization without executing code.</li>
               </ul>
               <p className="mt-2 text-slate-400">We can add full multi-language execution later using secure sandboxes or interpreters.</p>
